@@ -240,6 +240,7 @@ class Ui_Form(object):
 
     def osx_lyrics_thread(self, comm):
         lyrics, url, timed = None, None, None
+
         oldsongname = ""
         style = self.label_songname.styleSheet()
         if style == "":
@@ -247,6 +248,11 @@ class Ui_Form(object):
         else:
             color = style
         while True:
+            # keeps track of the closest verse in the future
+            closest_index = 0
+            # keeps track of how many seconds from the start
+            # the closest verse in history is
+            closest_timestamp = 10000
             songname = backend.getwindowtitle()
             # this part only handles song changes
             if oldsongname != songname:
@@ -271,12 +277,6 @@ class Ui_Form(object):
                 output = []
                 position = backend.get_position()
                 print("Update starts...")
-
-                # keeps track of the closest line in the future
-                closest_index = 0
-                # keeps track of how many seconds in the future
-                # the closest line is
-                closest_timestamp = 10000
                 for i, line in enumerate(lyrics.splitlines()):
                     timestamp = line.split("]")[0][1:]
 
@@ -293,12 +293,20 @@ class Ui_Form(object):
                     # otherwise this is a metadata line we can ignore
                     except ValueError:
                         continue
+                    repeats_ = []
 
-                    repeats = [datetime.combine(epoch, datetime.strptime("01:" + s[1:], "%H:%M:%S.%f").time()) for s in
-                               repeats]
-                    # print(repeats)
-                    # if not found_line:
-                    # check all timestamps associated with the line
+                    # surround each of these with a try/except too because
+                    # sometimes there might be ] characters in the title
+                    # that don't come from timestamps
+                    for s in repeats:
+                        try:
+                            repeats_.append(
+                                datetime.combine(epoch, datetime.strptime("01:" + s[1:], "%H:%M:%S.%f").time()))
+                        except ValueError:
+                            pass
+                    repeats = repeats_
+
+                    # check all timestamps associated with the current line/verse
                     for stamp in [timestamp] + repeats:
                         print(closest_timestamp, stamp.timestamp(), position)
                         print("Seconds until this timestamp: %f" % (stamp.timestamp() - position))
@@ -308,7 +316,8 @@ class Ui_Form(object):
                         # in future than our current candidate,
                         if closest_timestamp > stamp.timestamp() > position:
                             closest_timestamp = stamp.timestamp()
-                            # we want the index *before* the current line
+                            # we want the index right before the current line,
+                            # but the timestamp of this line
                             closest_index = len(output) - 1
 
                     output.append("%s" % (rest))
@@ -316,7 +325,8 @@ class Ui_Form(object):
                 output[
                     closest_index] = "<style type=\"text/css\">b {font-size: %spt}</style><b>%s</b>" % (
                     self.fontBox.value() * 2, output[closest_index])
-                output[max(0, closest_index - 3)] += "<a name=\"#scrollHere\"></a>"
+                if closest_index >= 3:
+                    output[closest_index - 3] += "<a name=\"#scrollHere\"></a>"
                 comm.signal.emit(header, "<center>%s</center>" % "<br>".join(output))
                 print("Update ends...")
                 time.sleep(.3)
