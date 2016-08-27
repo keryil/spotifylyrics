@@ -1,16 +1,20 @@
 from PyQt5 import QtCore, QtGui, QtWidgets
 import backend
 import time
+from datetime import datetime
 import threading
 import os
 import re
 
 if os.name == "nt":
     import ctypes
+
     ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("spotifylyrics.version1")
+
 
 class Communicate(QtCore.QObject):
     signal = QtCore.pyqtSignal(str, str)
+
 
 class Ui_Form(object):
     sync = False
@@ -19,6 +23,7 @@ class Ui_Form(object):
         settingsdir = os.getenv("APPDATA") + "\\SpotifyLyrics\\"
     else:
         settingsdir = os.path.expanduser("~") + "/.SpotifyLyrics/"
+
     def __init__(self):
         super().__init__()
 
@@ -42,7 +47,7 @@ class Ui_Form(object):
         self.label_songname = QtWidgets.QLabel(Form)
         self.label_songname.setObjectName("label_songname")
         self.label_songname.setOpenExternalLinks(True)
-        self.horizontalLayout_2.addWidget(self.label_songname, 0, QtCore.Qt.AlignLeft|QtCore.Qt.AlignVCenter)
+        self.horizontalLayout_2.addWidget(self.label_songname, 0, QtCore.Qt.AlignLeft | QtCore.Qt.AlignVCenter)
         spacerItem = QtWidgets.QSpacerItem(40, 20, QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Minimum)
         self.horizontalLayout_2.addItem(spacerItem)
         self.comboBox = QtWidgets.QComboBox(Form)
@@ -57,7 +62,7 @@ class Ui_Form(object):
         self.fontBox.setMinimum(1)
         self.fontBox.setProperty("value", 10)
         self.fontBox.setObjectName("fontBox")
-        self.horizontalLayout_2.addWidget(self.fontBox, 0, QtCore.Qt.AlignRight|QtCore.Qt.AlignVCenter)
+        self.horizontalLayout_2.addWidget(self.fontBox, 0, QtCore.Qt.AlignRight | QtCore.Qt.AlignVCenter)
         self.verticalLayout_2.addLayout(self.horizontalLayout_2)
         self.textBrowser = QtWidgets.QTextBrowser(Form)
         self.textBrowser.setObjectName("textBrowser")
@@ -92,7 +97,7 @@ class Ui_Form(object):
                             else:
                                 self.ontop = False
                         if "fontsize" in lcline:
-                            set = line.split("=",1)[1].strip()
+                            set = line.split("=", 1)[1].strip()
                             try:
                                 self.fontBox.setValue(int(set))
                             except ValueError:
@@ -158,7 +163,7 @@ class Ui_Form(object):
                     for setting in theme.readlines():
                         lcsetting = setting.lower()
                         try:
-                            set = setting.split("=",1)[1].strip()
+                            set = setting.split("=", 1)[1].strip()
                         except IndexError:
                             set = ""
                         if "windowopacity" in lcsetting:
@@ -221,7 +226,8 @@ class Ui_Form(object):
         if backend.versioncheck() == True:
             self.label_songname.setText(_translate("Form", "Spotify Lyrics"))
         else:
-            self.label_songname.setText(_translate("Form", "Spotify Lyrics <style type=\"text/css\">a {text-decoration: none}</style><a href=\"https://github.com/fr31/spotifylyrics/releases\"><sup>(update)</sup></a>"))
+            self.label_songname.setText(_translate("Form",
+                                                   "Spotify Lyrics <style type=\"text/css\">a {text-decoration: none}</style><a href=\"https://github.com/fr31/spotifylyrics/releases\"><sup>(update)</sup></a>"))
         self.textBrowser.setText(_translate("Form", "Play a song in Spotify to fetch lyrics."))
         self.fontBox.setToolTip(_translate("Form", "Font Size"))
         self.comboBox.setItemText(0, _translate("Form", "Options"))
@@ -229,7 +235,8 @@ class Ui_Form(object):
         self.comboBox.setItemText(2, _translate("Form", "Always on Top"))
         self.comboBox.setItemText(3, _translate("Form", "Save Settings"))
 
-    def lyrics_thread(self, comm):
+    def osx_lyrics_thread(self, comm):
+        lyrics, url, timed = None, None, None
         oldsongname = ""
         style = self.label_songname.styleSheet()
         if style == "":
@@ -239,75 +246,169 @@ class Ui_Form(object):
         while True:
             songname = backend.getwindowtitle()
             if oldsongname != songname:
+                lyrics, url, timed = backend.getlyrics(songname, sync=self.sync)
                 if songname != "Spotify" and songname != "":
                     oldsongname = songname
                     comm.signal.emit(songname, "Loading...")
                     start = time.time()
-                    if self.sync == True:
-                        lyrics, url, timed = backend.getlyrics(songname, sync=True)
-                    else:
-                        lyrics, url, timed = backend.getlyrics(songname)
+
                     if url == "":
                         header = songname
                     else:
-                        header = '''<style type="text/css">a {text-decoration: none; %s}</style><a href="%s">%s</a>''' % (color, url, songname)
-                    if timed == True:
-                        lrc = []
-                        lyricsclean = ""
-                        firstline = False
-                        for line in lyrics.splitlines():
-                            lrc.append(line)
-                            if line.startswith(("[0", "[1", "[2")):
-                                firstline = True
-                                regex = re.compile('\[.+?\]')
-                                line = regex.sub('', line)
-                                lyricsclean = lyricsclean + line.strip() + "\n"
-                            elif line == "" and firstline == True:
-                                lyricsclean = lyricsclean + "\n"
-                        comm.signal.emit(header, lyricsclean)
-                        count = -1
-                        firstline = False
-                        for line in lrc:
-                            if line == "" and firstline == True:
-                                count += 1
-                            if line.startswith(("[0", "[1", "[2")):
-                                firstline = True
-                                count += 1
-                                ltime = line[line.find("[") + 1:line.find("]")]
-                                add = float(ltime[0:2]) * 60
-                                try:
-                                    ltime = float(ltime[3:])
-                                except ValueError:
-                                    ltime = 0.0
-                                rtime = add + ltime - 0.5
-                                lyrics1 = lyricsclean.splitlines()
-                                regex = re.compile('\[.+?\]')
-                                line = regex.sub('', line)
-                                regex = re.compile('\<.+?\>')
-                                line = regex.sub('', line)
-                                lyrics1[count] = "<b>%s</b>" % line.strip()
-                                if count-2 > 0:
-                                    lyrics1[count-2] = "<a name=\"#scrollHere\">%s</a>" % lyrics1[count-2].strip()
-                                boldlyrics = '<br>'.join(lyrics1)
-                                while True:
-                                    if rtime <= time.time() - start and backend.getwindowtitle() != "Spotify":
-                                        boldlyrics = '<style type="text/css">p {font-size: %spt}</style><p>' % self.fontBox.value() * 2 + boldlyrics + '</p>'
-                                        comm.signal.emit(header, boldlyrics)
-                                        time.sleep(0.5)
-                                        break
-                                    elif backend.getwindowtitle() == "Spotify":
-                                        time.sleep(0.2)
-                                        start = start + 0.2
-                                    else:
-                                        if songname != backend.getwindowtitle():
-                                            break
-                                        else:
-                                            time.sleep(0.2)
-                            if songname != backend.getwindowtitle() and backend.getwindowtitle() != "Spotify":
-                                break
+                        header = '''<style type="text/css">a {text-decoration: none; %s}</style><a href="%s">%s</a>''' % (
+                            color, url, songname)
                     if timed == False:
                         comm.signal.emit(header, lyrics)
-            time.sleep(1)
+
+            # under OS/X the title does not include position
+            elif self.sync and timed:
+                epoch = datetime(1970, 1, 1, 1)
+                output = []
+                position = backend.get_position()
+                print("Update starts...")
+                # indicates whether we have found the
+                # line currently being sung
+                found_line = False
+                closest_index = 0
+                closest_timestamp = 10000
+                for i, line in enumerate(lyrics.splitlines()):
+                    timestamp = line.split("]")[0][1:]
+
+                    # we can have multiple timestamps for repeated
+                    # lines
+                    repeats = []
+                    if len(line.split("]")) > 2:
+                        repeats = line.split("]")[1:-1]
+
+                    rest = line.split("]")[-1].strip()
+                    # if we can parse a datetime object, this is indeed a timestamp
+                    try:
+                        timestamp = datetime.combine(epoch, datetime.strptime("01:" + timestamp, "%H:%M:%S.%f").time())
+                    # otherwise this is a metadata line we can ignore
+                    except ValueError:
+                        continue
+
+                    repeats = [datetime.combine(epoch, datetime.strptime("01:" + s[1:], "%H:%M:%S.%f").time()) for s in
+                               repeats]
+                    # print(repeats)
+                    # if not found_line:
+                    # check all timestamps associated with the line
+                    for stamp in [timestamp] + repeats:
+                        # if this stamp is not already in the past
+                        # the previous line we processed is currently
+                        # being sung
+                        print(stamp)
+                        print(closest_timestamp, stamp.timestamp(), position)
+                        print("Seconds until next timestamp: %f" % (stamp.timestamp() - position))
+                        print("******")
+                        # we don't want to get stuck in repetitions
+                        # so here's a dirty hack
+                        if closest_timestamp > stamp.timestamp() > position:
+                            closest_timestamp = stamp.timestamp()
+                            closest_index = len(output)
+                            # if stamp.timestamp() -
+                            # if rest != "":
+                            #     found_line = True
+                            #     try:
+                            #         output[-1] = "<a name=\"#scrollHere\"></a><style type=\"text/css\">b {font-size: %spt}</style><b>%s</b>" % (self.fontBox.value() * 2,
+                            #                                                                               output[-1])
+                            #     except:
+                            #         rest = "<a name=\"#scrollHere\"></a><style type=\"text/css\">b {font-size: %spt}</style><b>%s</b>" % (self.fontBox.value() * 2,
+                            #                                                                                rest)
+                            # break
+
+                    output.append("%s" % (rest))
+                output[
+                    closest_index] = "<a name=\"#scrollHere\"></a><style type=\"text/css\">b {font-size: %spt}</style><b>%s</b>" % (
+                    self.fontBox.value() * 2, output[closest_index])
+                print(closest_index, output[closest_index])
+                comm.signal.emit(header, "<center>%s</center>" % "<br>".join(output))
+                print("Update ends...")
+                time.sleep(.3)
+
+    def lyrics_thread(self, comm):
+        if sys.platform == 'darwin':
+            self.osx_lyrics_thread(comm)
+        else:
+            oldsongname = ""
+            style = self.label_songname.styleSheet()
+            if style == "":
+                color = "color: black"
+            else:
+                color = style
+            while True:
+                songname = backend.getwindowtitle()
+                if oldsongname != songname:
+                    if songname != "Spotify" and songname != "":
+                        oldsongname = songname
+                        comm.signal.emit(songname, "Loading...")
+                        start = time.time()
+                        lyrics, url, timed = backend.getlyrics(songname, sync=self.sync)
+
+                        if url == "":
+                            header = songname
+                        else:
+                            header = '''<style type="text/css">a {text-decoration: none; %s}</style><a href="%s">%s</a>''' % (
+                                color, url, songname)
+                        if timed == True:
+                            lrc = []
+                            lyricsclean = ""
+                            firstline = False
+                            for line in lyrics.splitlines():
+                                lrc.append(line)
+                                if line.startswith(("[0", "[1", "[2")):
+                                    firstline = True
+                                    regex = re.compile('\[.+?\]')
+                                    line = regex.sub('', line)
+                                    lyricsclean = lyricsclean + line.strip() + "\n"
+                                elif line == "" and firstline == True:
+                                    lyricsclean = lyricsclean + "\n"
+                            comm.signal.emit(header, lyricsclean)
+                            count = -1
+                            firstline = False
+                            for line in lrc:
+                                if line == "" and firstline == True:
+                                    count += 1
+                                if line.startswith(("[0", "[1", "[2")):
+                                    firstline = True
+                                    count += 1
+                                    ltime = line[line.find("[") + 1:line.find("]")]
+                                    add = float(ltime[0:2]) * 60
+                                    try:
+                                        ltime = float(ltime[3:])
+                                    except ValueError:
+                                        ltime = 0.0
+                                    rtime = add + ltime - 0.5
+                                    lyrics1 = lyricsclean.splitlines()
+                                    regex = re.compile('\[.+?\]')
+                                    line = regex.sub('', line)
+                                    regex = re.compile('\<.+?\>')
+                                    line = regex.sub('', line)
+                                    lyrics1[count] = "<b>%s</b>" % line.strip()
+                                    if count - 2 > 0:
+                                        lyrics1[count - 2] = "<a name=\"#scrollHere\">%s</a>" % lyrics1[
+                                            count - 2].strip()
+                                    boldlyrics = '<br>'.join(lyrics1)
+                                    while True:
+                                        if rtime <= time.time() - start and backend.getwindowtitle() != "Spotify":
+                                            boldlyrics = '<style type="text/css">p {font-size: %spt}</style><p>' % self.fontBox.value() * 2 + boldlyrics + '</p>'
+                                            comm.signal.emit(header, boldlyrics)
+                                            time.sleep(0.5)
+                                            break
+                                        elif backend.getwindowtitle() == "Spotify":
+                                            time.sleep(0.2)
+                                            start = start + 0.2
+                                        else:
+                                            if songname != backend.getwindowtitle():
+                                                break
+                                            else:
+                                                time.sleep(0.2)
+                                if songname != backend.getwindowtitle() and backend.getwindowtitle() != "Spotify":
+                                    break
+                        if timed == False:
+                            comm.signal.emit(header, lyrics)
+
+                time.sleep(1)
 
     def start_thread(self):
         lyricsthread = threading.Thread(target=self.lyrics_thread, args=(self.comm,))
@@ -320,8 +421,10 @@ class Ui_Form(object):
         self.textBrowser.setText(_translate("Form", lyrics))
         self.textBrowser.scrollToAnchor("#scrollHere")
 
+
 if __name__ == "__main__":
     import sys
+
     app = QtWidgets.QApplication(sys.argv)
     Form = QtWidgets.QWidget()
     ui = Ui_Form()

@@ -184,19 +184,33 @@ def getlyrics(songname, sync=False):
     lyrics = lyrics.strip()
     return(lyrics, url, timed)
 
+
+def call_applescript(path):
+    """
+    Executes the AppleScript file at the given path, and returns its return value.
+    :param path:
+    :return:
+    """
+    command = "osascript %s.AppleScript" % path
+    return subprocess.check_output(["/bin/bash", "-c", command]).decode("utf-8")
+
+
+def osx_track_name():
+    return call_applescript("getCurrentSong")
+
+
+def get_position():
+    if sys.platform == "darwin":
+        return float(call_applescript("getCurrentPosition"))
+
 def getwindowtitle():
+    windowname = ''
     if sys.platform== "win32":
         spotify = win32gui.FindWindow('SpotifyMainWindow', None)
         windowname = win32gui.GetWindowText(spotify)
     elif sys.platform == "darwin":
-        windowname = ''
-        try:
-            command = "osascript getCurrentSong.AppleScript"
-            windowname = subprocess.check_output(["/bin/bash", "-c", command]).decode("utf-8")
-        except Exception:
-            pass
+        windowname = osx_track_name()
     else:
-        windowname = ''
         session = dbus.SessionBus()
         spotifydbus = session.get_object("org.mpris.MediaPlayer2.spotify", "/org/mpris/MediaPlayer2")
         spotifyinterface = dbus.Interface(spotifydbus, "org.freedesktop.DBus.Properties")
