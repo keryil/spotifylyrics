@@ -248,19 +248,22 @@ class Ui_Form(object):
         else:
             color = style
         while True:
+
             # keeps track of the closest verse in the future
             closest_index = 0
+
             # keeps track of how many seconds from the start
             # the closest verse in history is
             closest_timestamp = 10000
+
             songname = backend.getwindowtitle()
+
             # this part only handles song changes
             if oldsongname != songname:
                 lyrics, url, timed = backend.getlyrics(songname, sync=self.sync)
                 if songname != "Spotify" and songname != "":
                     oldsongname = songname
                     comm.signal.emit(songname, "Loading...")
-                    start = time.time()
 
                     if url == "":
                         header = songname
@@ -276,7 +279,7 @@ class Ui_Form(object):
                 epoch = datetime(1970, 1, 1)
                 output = []
                 position = backend.get_position()
-                print("Update starts...")
+
                 for i, line in enumerate(lyrics.splitlines()):
                     timestamp = line.split("]")[0][1:]
 
@@ -308,9 +311,9 @@ class Ui_Form(object):
 
                     # check all timestamps associated with the current line/verse
                     for stamp in [timestamp] + repeats:
-                        print(closest_timestamp, stamp.timestamp(), position)
-                        print("Seconds until this timestamp: %f" % (stamp.timestamp() - position))
-                        print("******")
+                        # print(closest_timestamp, stamp.timestamp(), position)
+                        # print("Seconds until this timestamp: %f" % (stamp.timestamp() - position))
+                        # print("******")
 
                         # check that the stamp is in the future, but closer
                         # in future than our current candidate,
@@ -321,6 +324,7 @@ class Ui_Form(object):
                             closest_index = len(output) - 1
 
                     output.append("%s" % (rest))
+                # if first_index != closest_index:
                 print("Current line: @%d: %s" % (closest_index, output[closest_index]))
                 output[
                     closest_index] = "<style type=\"text/css\">b {font-size: %spt}</style><b>%s</b>" % (
@@ -328,7 +332,6 @@ class Ui_Form(object):
                 if closest_index >= 3:
                     output[closest_index - 3] += "<a name=\"#scrollHere\"></a>"
                 comm.signal.emit(header, "<center>%s</center>" % "<br>".join(output))
-                print("Update ends...")
                 time.sleep(.3)
 
     def lyrics_thread(self, comm):
