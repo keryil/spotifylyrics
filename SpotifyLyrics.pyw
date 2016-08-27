@@ -245,6 +245,7 @@ class Ui_Form(object):
             color = style
         while True:
             songname = backend.getwindowtitle()
+            # this part only handles song changes
             if oldsongname != songname:
                 lyrics, url, timed = backend.getlyrics(songname, sync=self.sync)
                 if songname != "Spotify" and songname != "":
@@ -261,8 +262,9 @@ class Ui_Form(object):
                         comm.signal.emit(header, lyrics)
 
             # under OS/X the title does not include position
+            # so this part is required to be separate
             elif self.sync and timed:
-                epoch = datetime(1970, 1, 1, 1)
+                epoch = datetime(1970, 1, 1)
                 output = []
                 position = backend.get_position()
                 print("Update starts...")
@@ -299,13 +301,13 @@ class Ui_Form(object):
                         # being sung
                         print(stamp)
                         print(closest_timestamp, stamp.timestamp(), position)
-                        print("Seconds until next timestamp: %f" % (stamp.timestamp() - position))
+                        print("Seconds until this timestamp: %f" % (stamp.timestamp() - position))
                         print("******")
                         # we don't want to get stuck in repetitions
                         # so here's a dirty hack
                         if closest_timestamp > stamp.timestamp() > position:
                             closest_timestamp = stamp.timestamp()
-                            closest_index = len(output)
+                            closest_index = len(output) - 1
                             # if stamp.timestamp() -
                             # if rest != "":
                             #     found_line = True
@@ -319,8 +321,9 @@ class Ui_Form(object):
 
                     output.append("%s" % (rest))
                 output[
-                    closest_index] = "<a name=\"#scrollHere\"></a><style type=\"text/css\">b {font-size: %spt}</style><b>%s</b>" % (
+                    closest_index] = "<style type=\"text/css\">b {font-size: %spt}</style><b>%s</b>" % (
                     self.fontBox.value() * 2, output[closest_index])
+                output[max(0, closest_index - 3)] += "<a name=\"#scrollHere\"></a>"
                 print(closest_index, output[closest_index])
                 comm.signal.emit(header, "<center>%s</center>" % "<br>".join(output))
                 print("Update ends...")
