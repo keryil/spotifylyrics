@@ -42,14 +42,16 @@ class Ui_Form(object):
         self.gridLayout_2.setObjectName("gridLayout_2")
         self.verticalLayout_2 = QtWidgets.QVBoxLayout()
         self.verticalLayout_2.setObjectName("verticalLayout_2")
-        self.horizontalLayout_2 = QtWidgets.QHBoxLayout()
-        self.horizontalLayout_2.setObjectName("horizontalLayout_2")
+        self.topLayout = QtWidgets.QVBoxLayout()
+        self.topLayout.setObjectName("horizontalLayout_2")
         self.label_songname = QtWidgets.QLabel(Form)
         self.label_songname.setObjectName("label_songname")
         self.label_songname.setOpenExternalLinks(True)
-        self.horizontalLayout_2.addWidget(self.label_songname, 0, QtCore.Qt.AlignLeft | QtCore.Qt.AlignVCenter)
+        self.topLayout.addWidget(self.label_songname, 0, QtCore.Qt.AlignCenter)  # Left | QtCore.Qt.AlignHCenter)
         spacerItem = QtWidgets.QSpacerItem(40, 20, QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Minimum)
-        self.horizontalLayout_2.addItem(spacerItem)
+        self.topLayout.addItem(spacerItem)
+        self.settingsLayout = QtWidgets.QHBoxLayout()
+        self.settingsLayout.setObjectName("settingsLayout")
         self.comboBox = QtWidgets.QComboBox(Form)
         self.comboBox.setGeometry(QtCore.QRect(160, 120, 69, 22))
         self.comboBox.setObjectName("comboBox")
@@ -57,13 +59,14 @@ class Ui_Form(object):
         self.comboBox.addItem("")
         self.comboBox.addItem("")
         self.comboBox.addItem("")
-        self.horizontalLayout_2.addWidget(self.comboBox, 0, QtCore.Qt.AlignRight | QtCore.Qt.AlignVCenter)
+        self.settingsLayout.addWidget(self.comboBox, 0, QtCore.Qt.AlignLeft | QtCore.Qt.AlignVCenter)
         self.fontBox = QtWidgets.QSpinBox(Form)
         self.fontBox.setMinimum(1)
         self.fontBox.setProperty("value", 10)
         self.fontBox.setObjectName("fontBox")
-        self.horizontalLayout_2.addWidget(self.fontBox, 0, QtCore.Qt.AlignRight | QtCore.Qt.AlignVCenter)
-        self.verticalLayout_2.addLayout(self.horizontalLayout_2)
+        self.settingsLayout.addWidget(self.fontBox, 0, QtCore.Qt.AlignRight | QtCore.Qt.AlignVCenter)
+        self.topLayout.addLayout(self.settingsLayout)
+        self.verticalLayout_2.addLayout(self.topLayout)
         self.textBrowser = QtWidgets.QTextBrowser(Form)
         self.textBrowser.setObjectName("textBrowser")
         self.textBrowser.setAcceptRichText(True)
@@ -268,10 +271,11 @@ class Ui_Form(object):
                 output = []
                 position = backend.get_position()
                 print("Update starts...")
-                # indicates whether we have found the
-                # line currently being sung
-                found_line = False
+
+                # keeps track of the closest line in the future
                 closest_index = 0
+                # keeps track of how many seconds in the future
+                # the closest line is
                 closest_timestamp = 10000
                 for i, line in enumerate(lyrics.splitlines()):
                     timestamp = line.split("]")[0][1:]
@@ -283,7 +287,7 @@ class Ui_Form(object):
                         repeats = line.split("]")[1:-1]
 
                     rest = line.split("]")[-1].strip()
-                    # if we can parse a datetime object, this is indeed a timestamp
+                    # if we can parse a datetime object, this is indeed a valid verse
                     try:
                         timestamp = datetime.combine(epoch, datetime.strptime("01:" + timestamp, "%H:%M:%S.%f").time())
                     # otherwise this is a metadata line we can ignore
@@ -296,35 +300,23 @@ class Ui_Form(object):
                     # if not found_line:
                     # check all timestamps associated with the line
                     for stamp in [timestamp] + repeats:
-                        # if this stamp is not already in the past
-                        # the previous line we processed is currently
-                        # being sung
-                        print(stamp)
                         print(closest_timestamp, stamp.timestamp(), position)
                         print("Seconds until this timestamp: %f" % (stamp.timestamp() - position))
                         print("******")
-                        # we don't want to get stuck in repetitions
-                        # so here's a dirty hack
+
+                        # check that the stamp is in the future, but closer
+                        # in future than our current candidate,
                         if closest_timestamp > stamp.timestamp() > position:
                             closest_timestamp = stamp.timestamp()
+                            # we want the index *before* the current line
                             closest_index = len(output) - 1
-                            # if stamp.timestamp() -
-                            # if rest != "":
-                            #     found_line = True
-                            #     try:
-                            #         output[-1] = "<a name=\"#scrollHere\"></a><style type=\"text/css\">b {font-size: %spt}</style><b>%s</b>" % (self.fontBox.value() * 2,
-                            #                                                                               output[-1])
-                            #     except:
-                            #         rest = "<a name=\"#scrollHere\"></a><style type=\"text/css\">b {font-size: %spt}</style><b>%s</b>" % (self.fontBox.value() * 2,
-                            #                                                                                rest)
-                            # break
 
                     output.append("%s" % (rest))
+                print("Current line: @%d: %s" % (closest_index, output[closest_index]))
                 output[
                     closest_index] = "<style type=\"text/css\">b {font-size: %spt}</style><b>%s</b>" % (
                     self.fontBox.value() * 2, output[closest_index])
                 output[max(0, closest_index - 3)] += "<a name=\"#scrollHere\"></a>"
-                print(closest_index, output[closest_index])
                 comm.signal.emit(header, "<center>%s</center>" % "<br>".join(output))
                 print("Update ends...")
                 time.sleep(.3)
