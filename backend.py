@@ -205,7 +205,7 @@ def get_position():
 
 def getwindowtitle():
     windowname = ''
-    if sys.platform== "win32":
+    if sys.platform == "win32":
         spotify = win32gui.FindWindow('SpotifyMainWindow', None)
         windowname = win32gui.GetWindowText(spotify)
     elif sys.platform == "darwin":
